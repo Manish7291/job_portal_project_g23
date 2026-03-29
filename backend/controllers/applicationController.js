@@ -4,6 +4,7 @@ const Application = require('../models/Application');
 const Job = require('../models/Job');
 const Notification = require('../models/Notification');
 const StudentProfile = require('../models/StudentProfile');
+const { emitApplicationStatusUpdate, emitNewApplication } = require('../services/socketService');
 
 // @desc    Apply to a job
 // @route   POST /api/applications/:jobId
@@ -40,6 +41,16 @@ exports.applyToJob = asyncHandler(async (req, res) => {
     message: `${req.user.name} applied to ${job.title}`,
     link: `/recruiter/jobs/${job._id}/applicants`
   });
+
+  // Emit real-time socket event for new application
+  const io = req.app.get('io');
+  if (io) {
+    emitNewApplication(io, {
+      jobId: job._id.toString(),
+      applicantName: req.user.name,
+      applicantId: req.user._id.toString()
+    });
+  }
 
   res.status(201).json({ success: true, application });
 });
@@ -89,6 +100,19 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     message: `Your application for ${application.job.title} has been ${status}`,
     link: '/student/applications'
   });
+
+  // Emit real-time socket event for status update
+  const io = req.app.get('io');
+  if (io) {
+    emitApplicationStatusUpdate(io, {
+      applicationId: application._id.toString(),
+      jobId: application.job._id.toString(),
+      studentId: application.applicant.toString(),
+      status: status,
+      applicantName: req.user.name,
+      jobTitle: application.job.title
+    });
+  }
 
   res.json({ success: true, application });
 });
